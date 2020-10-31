@@ -67,6 +67,8 @@ int main(int argc, char *argv[]) {
      * =======================================================================
      */
 
+    // TODO we can consider optimizing on this afterwards, maybe just trying to send
+    // the task out to processes immediately will help
     if (rank == 0) {
         // Head and tail pointers of the task queue
         task_node_t *head, *tail;
@@ -99,32 +101,44 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Declare array to store generated descendant tasks
-        int num_new_tasks = 0;
-        task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
+        // TODO distribute initial tasks
+    }
+    // Declare array to store generated descendant tasks
+    int num_new_tasks = 0;
+    task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
-        // Clear tasks in queue one by one
-        while (head != NULL) {
-            task_node_t *curr = head;
-            execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
+    task_t *task_msg_buffer = (task_t*) malloc(num_procs * sizeof(task_t));
 
-            for (int i = 0; i < num_new_tasks; i++) {
-                // Construct new node for descendant task
-                task_node_t *node = calloc(1, sizeof(task_node_t));
-                node->task = task_buffer[i];
-                node->next = NULL;
+    // TODO wait for a task
+    for (int i = 0; i < num_procs; i++) {
+      if (i == rank) continue;
 
-                tail->next = node;
-                tail = node;
-            }
+      MPI_Irecv(&task_msg_buffer[i], 1, MPI_T)
 
-            // Destroy node for completed task
-            head = head->next;
-            free(curr);
+    }
+    
+
+    // Clear tasks in queue one by one
+    while (head != NULL) {
+        task_node_t *curr = head;
+        execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
+
+        for (int i = 0; i < num_new_tasks; i++) {
+            // Construct new node for descendant task
+            task_node_t *node = calloc(1, sizeof(task_node_t));
+            node->task = task_buffer[i];
+            node->next = NULL;
+
+            tail->next = node;
+            tail = node;
         }
 
-        free(task_buffer);
+        // Destroy node for completed task
+        head = head->next;
+        free(curr);
     }
+
+    free(task_buffer);
 
     /*
      * =======================================================================

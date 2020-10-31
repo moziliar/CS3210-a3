@@ -1,4 +1,6 @@
 #include "tasks.h"
+#define TASK_TAG 0
+#define BUSY_TAG 1
 
 // Struct used to implement a queue of task nodes
 typedef struct task_node {
@@ -67,12 +69,26 @@ int main(int argc, char *argv[]) {
      * =======================================================================
      */
 
+    // MPI Task Struct
+    MPI_Datatype task_struct;
+    int          blocklens[] = {1, 1};
+    MPI_Aint     displacements[] = {0, sizeof(int)};
+    MPI_Datatype old_types[] = {MPI_INT, MPI_UNSIGNED};
+
+    MPI_Type_create_struct(2, blocklens, displacements, old_types, &task_struct);
+    MPI_Type_commit(&task_struct);
+
+    // task queue
+    task_node_t *head, *tail;
+    int task_queue_len;
+
+    head = tail = NULL;
+    task_queue_len = 0;
+
     // TODO we can consider optimizing on this afterwards, maybe just trying to send
     // the task out to processes immediately will help
     if (rank == 0) {
         // Head and tail pointers of the task queue
-        task_node_t *head, *tail;
-        head = tail = NULL;
 
         // Read initial tasks
         int count;
@@ -99,15 +115,60 @@ int main(int argc, char *argv[]) {
                 tail->next = node;
                 tail = node;
             }
+
+	    task_queue_len++;
         }
 
         // TODO distribute initial tasks
     }
+    /*
+     * After the rank 0 node reads in the tasks, we can already treat it as one of the worker node.
+     * The task distribution will be the same from this point onwards.
+     */
+
     // Declare array to store generated descendant tasks
     int num_new_tasks = 0;
     task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
     task_t *task_msg_buffer = (task_t*) malloc(num_procs * sizeof(task_t));
+
+    while (true) {
+        switch (task_queue_len) {
+            case 1:
+                // just execute the task
+                task_node_t *curr = head;
+                execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
+                task_queue_len--;
+                break;
+            case 0:
+                /*
+                 * 1. test any to see if there are tasks from previous round of broadcast and add to queue if any
+                 * 1.1. break if queue not empty
+                 * 1.2. else Ibcst FREE
+                 * 2. IRecv tasks from all
+                 * 3. Waitany
+                 * 4. Ibcst BUSY
+                 * 5. loop to receive all incoming tasks and add to queue
+                 * 6. execute task
+                 */
+                int flag = 0;
+                MPI_Testany(num_procs-1, 
+                break;
+            default:
+                /*
+                 * 1.1. (task_queue_len > 1) loop: try to Ibcst tasks
+                 * 1.2. (task_queue_len = 1) break and Ibcst BUSY
+                 * 2.1. Upon receiving a status broadcast from node 2, test until there's no more backlog from 2
+                 * 2.2. If node 2 is free, ISend task and remove from task_queue
+                 * 3. execute task
+                 */
+                break;
+        }
+    }
+        
+
+
+
 
     // TODO wait for a task
     for (int i = 0; i < num_procs; i++) {

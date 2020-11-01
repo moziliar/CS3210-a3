@@ -246,11 +246,12 @@ int main(int argc, char *argv[]) {
                 int count;
                 MPI_Get_count(&status, MPI_TASK_T, &count); // status.count is maximum count
                 int receiver = 0;
-                if (count > 0) {
+                if (count > 0 && has_message) {
                     printf("rank %d receiving %d tasks, source %d, tag %d\n", rank, count, status.MPI_SOURCE, status.MPI_TAG);
                     receiver = 1;
                 }
                 for (int j = 0; j < count; j++) {
+                    if (!has_message) break;
                     task_t new_task;
                     
                     printf("rank %d receiving task %d, will block\n", rank, j);

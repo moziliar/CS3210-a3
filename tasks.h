@@ -11,7 +11,7 @@
 /*
  * ========== MODIFY THESE AS REQUIRED ==========
  */
-#define DEBUG 0
+#define DEBUG 2
 #define CHILD_DEPTH 1
 
 /*

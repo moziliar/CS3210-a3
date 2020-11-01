@@ -2,10 +2,10 @@ compile:
 	mpicc tasks.h tasks.c main.c -lm -Wpedantic -Wall -o distr-sched
 
 config-chains:
-	mpirun -np 4 ./distr-sched 8 1 1 0.00 < chains.in > chains.out
+	mpirun -np 10 ./distr-sched 8 1 1 0.00 < chains.in > chains.out
 
 config-heaps:
-	mpirun -np 4 ./distr-sched 2 2 2 0.00 < heaps.in
+	mpirun -np 6 ./distr-sched 2 2 2 0.00 < heaps.in
 
 config-sparse:
 	mpirun -np 4 ./distr-sched 12 0 10 0.16 < sparse.in > sparse.out

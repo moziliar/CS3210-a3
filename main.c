@@ -89,9 +89,12 @@ int main(int argc, char *argv[]) {
   // flags
   int TASK_TAG = 0;
   int BUSY_TAG = 1;
+  int COUNT_TAG = 2;
 
   int FREE = 0;
   int BUSY = 1;
+
+  int total_active_tasks = 0;
 
   // TODO we can consider optimizing on this afterwards, maybe just trying to send
   // the task out to processes immediately will help
@@ -99,10 +102,9 @@ int main(int argc, char *argv[]) {
     // Head and tail pointers of the task queue
 
     // Read initial tasks
-    int count;
-    scanf("%d", &count);
+    scanf("%d", &total_active_tasks);
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < total_active_tasks; i++) {
       task_node_t *node = (task_node_t*) calloc(1, sizeof(task_node_t));
       if (node == NULL) {
         fprintf(stderr, "Failed to calloc task queue node\n");
@@ -127,6 +129,10 @@ int main(int argc, char *argv[]) {
       task_queue_len++;
     }
   }
+
+  // tell everyone that there are n tasks at the start, then start distributing them.
+  MPI_Bcast(&total_active_tasks, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
   /*
    * After the rank 0 node reads in the tasks, we can already treat it as one of the worker node.
    * The task distribution will be the same from this point onwards.
@@ -140,6 +146,8 @@ int main(int argc, char *argv[]) {
 
   MPI_Request *task_reqs = malloc(num_procs * sizeof(MPI_Request));
   MPI_Request *busy_reqs = malloc(num_procs * sizeof(MPI_Request));
+  MPI_Request *count_reqs = malloc(num_procs * sizeof(MPI_Request));
+  count_reqs[rank] = MPI_REQUEST_NULL;
 
   // status buffer
   int *curr_status = calloc(num_procs, sizeof(int));
@@ -147,9 +155,14 @@ int main(int argc, char *argv[]) {
 
   int running = 1;
   int counter = 0;
+
+  int has_task_message;
+  int has_count_message;
+  MPI_Status incoming_count_message_status;
   while (running) {
 #if DEBUG
     if (counter > 10) {
+      counter = 0;
       printf("rank %d still running with task queue %d and view", rank, task_queue_len);
       for (int i = 0; i < num_procs; i++) printf("%d ", curr_status[i]);
       printf("\n");
@@ -157,6 +170,15 @@ int main(int argc, char *argv[]) {
       counter++;
     }
 #endif
+
+    // check if any new count messages and update accordingly
+    MPI_Iprobe(MPI_ANY_SOURCE, COUNT_TAG, MPI_COMM_WORLD, &has_count_message, &incoming_count_message_status);
+    if (has_count_message) {
+      int temp_new_tasks = 0;
+      MPI_Recv(&temp_new_tasks, 1, MPI_INT, incoming_count_message_status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
+      total_active_tasks = total_active_tasks - 1 + temp_new_tasks;
+    }
+
     switch (task_queue_len) {
       case 1: ;
               // just execute the task
@@ -164,6 +186,14 @@ int main(int argc, char *argv[]) {
               head = tail = NULL; // no more tasks
               task_queue_len = 0;
               execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
+
+              total_active_tasks = total_active_tasks - 1 + num_new_tasks;
+
+              for (int i = 0; i < num_procs; i++) {
+                if (i == rank) continue;
+
+                MPI_Isend(&num_new_tasks, 1, MPI_INT, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
+              }
 
               // enqueue all the child tasks
               for (int i = 0; i < num_new_tasks; i++) {
@@ -180,10 +210,19 @@ int main(int argc, char *argv[]) {
                 task_queue_len++;
               }
 
+              // we want to ensure num_new_tasks is fully recognized by the receivers
+              #if DEBUG
+              printf("rank %d waiting for all to receive\n", rank);
+              #endif
+                MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
+                #if DEBUG
+              printf("rank %d finished waiting for all to receive\n", rank);
+              #endif
+
               free(curr);
 
 #if DEBUG
-              printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
+              printf("rank %d completed a task with %d tasks in queue\n", rank, task_queue_len);
 #endif
               break;
       case 0: ;
@@ -204,10 +243,9 @@ int main(int argc, char *argv[]) {
 
               // step 1
 
-              int has_message;
               MPI_Status status;
-              MPI_Iprobe(MPI_ANY_SOURCE, TASK_TAG, MPI_COMM_WORLD, &has_message, &status);
-              if (!has_message) {
+              MPI_Iprobe(MPI_ANY_SOURCE, TASK_TAG, MPI_COMM_WORLD, &has_task_message, &status);
+              if (!has_task_message) {
                 // if cannot find any messages, go into waiting state
                 for (int i = 0; i < num_procs; i++) {
                   if (i == rank) continue;
@@ -216,15 +254,15 @@ int main(int argc, char *argv[]) {
                   MPI_Irecv(&curr_status[i], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[i]);
                 }
 
+/*
                 int all_waiting = 1;
                 for (int i = 0; i < num_procs; i++) {
-                  if (i == rank) continue;
-
                   all_waiting &= curr_status[i] == FREE; // check if all are waiting
                 }
+                */
 
-                if (all_waiting) {
-
+                //if (all_waiting) {
+                if (total_active_tasks == 0) {
 #if DEBUG
                   printf("rank %d terminate with view ", rank);
                   for (int i = 0; i < num_procs; i++) {
@@ -232,7 +270,6 @@ int main(int argc, char *argv[]) {
                   }
                   printf("\n");
 #endif
-
                   curr_status[rank] = FREE;
                   for (int i = 0; i < num_procs; i++) {
                     if (i == rank) continue;
@@ -248,6 +285,7 @@ int main(int argc, char *argv[]) {
                     printf("%d ", curr_status[i]);
                   }
                   printf("\n");
+                  printf("rank %d records %d active tasks\n", rank, total_active_tasks);
 #endif
 
                   sleep(1);
@@ -258,14 +296,14 @@ int main(int argc, char *argv[]) {
               int count;
               MPI_Get_count(&status, MPI_TASK_T, &count); // status.count is maximum count
               int receiver = 0;
-              if (count > 0 && has_message) {
+              if (count > 0 && has_task_message) {
 #if DEBUG
                 printf("rank %d receiving %d tasks, source %d, tag %d\n", rank, count, status.MPI_SOURCE, status.MPI_TAG);
 #endif
                 receiver = 1;
               }
               for (int j = 0; j < count; j++) {
-                if (!has_message) break;
+                if (!has_task_message) break;
                 task_t new_task;
 
 #if DEBUG
@@ -317,11 +355,10 @@ int main(int argc, char *argv[]) {
                 MPI_Isend(&curr_status[rank], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[rank]);
               }
 
-              // printf("probe\n");
               while (1) {
-                MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &has_message, &status);
+                MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &has_task_message, &status);
                 // printf("probe finished??\n");
-                if (!has_message) break;
+                if (!has_task_message) break;
                 // status now contains info from other nodes
                 // if it is a FREE message, update status array and probe again
                 if (status.MPI_TAG == BUSY_TAG) {
@@ -329,10 +366,16 @@ int main(int argc, char *argv[]) {
                   printf("rank %d receiving status from %d\n", rank, status.MPI_SOURCE);
 #endif
                   MPI_Recv(&curr_status[status.MPI_SOURCE], 1, MPI_INT, status.MPI_SOURCE, BUSY_TAG, MPI_COMM_WORLD, &status);
+                } else if (status.MPI_TAG == COUNT_TAG) {
+
+      int temp_new_tasks = 0;
+      MPI_Recv(&temp_new_tasks, 1, MPI_INT, status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
+      total_active_tasks = total_active_tasks - 1 + temp_new_tasks;
+
                 } else break; // receive task
               }
 
-              if (!has_message) {
+              if (!has_task_message) {
 #if DEBUG
                 printf("rank %d break again\n", rank);
 #endif
@@ -413,6 +456,15 @@ int main(int argc, char *argv[]) {
                  task_queue_len--;
                  execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
+                total_active_tasks = total_active_tasks - 1 + num_new_tasks;
+
+for (int i = 0; i < num_procs; i++) {
+                if (i == rank) continue;
+
+                MPI_Isend(&num_new_tasks, 1, MPI_INT, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
+              }
+
+
                  // enqueue all the child tasks
                  for (int i = 0; i < num_new_tasks; i++) {
                    task_node_t *node = calloc(1, sizeof(task_node_t));
@@ -424,9 +476,18 @@ int main(int argc, char *argv[]) {
                    task_queue_len++;
                  }
 
+              // we want to ensure num_new_tasks is fully distributed to the receivers
+              #if DEBUG
+              printf("rank %d waiting for all to receive\n", rank);
+              #endif
+                MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
+              #if DEBUG
+              printf("rank %d finished waiting for all to receive\n", rank);
+              #endif
+
                  free(curr);
 #if DEBUG
-                 printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
+                 printf("rank %d completed task with %d tasks in queue\n", rank, task_queue_len);
 #endif
                }
 
@@ -436,6 +497,7 @@ int main(int argc, char *argv[]) {
 
   free(task_reqs);
   free(busy_reqs);
+  free(count_reqs);
 
   free(task_buffer);
   free(task_msg_buffer);

@@ -146,8 +146,8 @@ int main(int argc, char *argv[]) {
     curr_status[0] = BUSY;
 
     int running = 1;
-    int counter = 0;
     while (running) {
+    /*
         if (counter > 10) {
             printf("rank %d still running with task queue %d and view", rank, task_queue_len);
             for (int i = 0; i < num_procs; i++) printf("%d ", curr_status[i]);
@@ -155,6 +155,7 @@ int main(int argc, char *argv[]) {
         } else {
             counter++;
         }
+        */
         switch (task_queue_len) {
             case 1: ;
                 // just execute the task
@@ -180,7 +181,7 @@ int main(int argc, char *argv[]) {
 
                 free(curr);
 
-                printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
+                // printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
                 break;
             case 0: ;
                 /*
@@ -220,11 +221,13 @@ int main(int argc, char *argv[]) {
                     }
 
                     if (all_waiting) {
+                        /*
                         printf("rank %d terminate with view ", rank);
                         for (int i = 0; i < num_procs; i++) {
                             printf("%d ", curr_status[i]);
                         }
                         printf("\n");
+                        */
                         curr_status[rank] = FREE;
                         for (int i = 0; i < num_procs; i++) {
                             if (i == rank) continue;
@@ -234,12 +237,14 @@ int main(int argc, char *argv[]) {
                         running = 0;
                         break;
                     } else {
-                        printf("rank %d continue with task queue size %d view ", rank, task_queue_len);
+                        /* printf("rank %d continue with task queue size %d view ", rank, task_queue_len);
                         for (int i = 0; i < num_procs; i++) {
                             printf("%d ", curr_status[i]);
                         }
                         printf("\n");
+
                         sleep(1);
+                        */
                     }
                 }
                 
@@ -247,16 +252,16 @@ int main(int argc, char *argv[]) {
                 MPI_Get_count(&status, MPI_TASK_T, &count); // status.count is maximum count
                 int receiver = 0;
                 if (count > 0 && has_message) {
-                    printf("rank %d receiving %d tasks, source %d, tag %d\n", rank, count, status.MPI_SOURCE, status.MPI_TAG);
+                    // printf("rank %d receiving %d tasks, source %d, tag %d\n", rank, count, status.MPI_SOURCE, status.MPI_TAG);
                     receiver = 1;
                 }
                 for (int j = 0; j < count; j++) {
                     if (!has_message) break;
                     task_t new_task;
                     
-                    printf("rank %d receiving task %d, will block\n", rank, j);
+                    // printf("rank %d receiving task %d, will block\n", rank, j);
                     MPI_Recv(&new_task, 1, MPI_TASK_T, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD, NULL);
-                    printf("rank %d received task %d\n", rank, j);
+                    // printf("rank %d received task %d\n", rank, j);
 
                     task_node_t *node = (task_node_t*) calloc(1, sizeof(task_node_t));
                     node->task = new_task;
@@ -273,14 +278,18 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (task_queue_len > 0) {
+                /*
                     if (receiver) {
                         printf("rank %d received tasks, now task queue size %d\n", rank, task_queue_len);
                     }
+                    */
                     break;
                 }
+                /*
                 if (receiver) {
                     printf("rank %d received tasks, now task queue size %d\n", rank, task_queue_len);
                 }
+                */
 
                 // step 1.2
                 // printf("declare free\n");
@@ -305,7 +314,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (!has_message) {
-                    printf("rank %d break again\n", rank);
+                    // printf("rank %d break again\n", rank);
                     break; // break to outer switch loop
                 }
 
@@ -320,7 +329,7 @@ int main(int argc, char *argv[]) {
                 // printf("busy??\n");
                 // at this point, the task queue length is guaranteed to be > 0
                 if (receiver) {
-                    printf("rank %d received tasks, now task queue size %d, trying to receive again\n", rank, task_queue_len);
+                    //printf("rank %d received tasks, now task queue size %d, trying to receive again\n", rank, task_queue_len);
                 }
                 task_t new_task;
                 MPI_Recv(&new_task, 1, MPI_TASK_T, status.MPI_SOURCE, TASK_TAG, MPI_COMM_WORLD, NULL);
@@ -338,10 +347,10 @@ int main(int argc, char *argv[]) {
                 }
 
                 task_queue_len++;
-                printf("queue length %d\n", task_queue_len);
+                // printf("queue length %d\n", task_queue_len);
 
                 if (receiver) {
-                    printf("rank %d received tasks, now task queue size %d\n", rank, task_queue_len);
+                    // printf("rank %d received tasks, now task queue size %d\n", rank, task_queue_len);
                 }
                 break;
             default: ;
@@ -393,7 +402,7 @@ int main(int argc, char *argv[]) {
                     }
 
                     free(curr);
-                    printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
+                    // printf("rank %d completed with %d tasks in queue\n", rank, task_queue_len);
                 }
 
                 break; // task_queue_len should be 1, fall into case above

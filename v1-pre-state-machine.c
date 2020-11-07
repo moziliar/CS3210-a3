@@ -1,5 +1,7 @@
 #include "tasks.h"
 
+// THIS VERSION IS PRIOR TO STATE MACHINE IMPL
+
 // Struct used to implement a queue of task nodes
 typedef struct task_node {
   task_t task;

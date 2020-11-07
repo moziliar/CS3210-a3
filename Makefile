@@ -1,6 +1,18 @@
 compile:
 	mpicc tasks.h tasks.c main.c -lm -Wpedantic -Wall -o distr-sched
 
+compile-v1:
+	mpicc tasks.h tasks.c v1-pre-state-machine.c -lm -Wpedantic -Wall -o distr-sched-v1
+
+compile-v2:
+	mpicc tasks.h tasks.c v2-state-machine-single-task.c -lm -Wpedantic -Wall -o distr-sched-v2
+
+compile-v3:
+	mpicc tasks.h tasks.c v3-multiple-tasks-with-waits.c -lm -Wpedantic -Wall -o distr-sched-v3
+
+compile-v4:
+	mpicc tasks.h tasks.c v4-broadcast.c -lm -Wpedantic -Wall -o distr-sched-v4
+
 compile-seq:
 	mpicc tasks.h tasks.c seq.c -lm -Wpedantic -Wall -o distr-sched-seq
 
@@ -9,6 +21,18 @@ config-chains:
 
 config-heaps:
 	mpirun -np 6 ./distr-sched 2 2 2 0.00 < heaps.in
+
+config-heaps-v1:
+	mpirun -np 6 ./distr-sched-v1 2 2 2 0.00 < heaps.in
+
+config-heaps-v2:
+	mpirun -np 6 ./distr-sched-v2 2 2 2 0.00 < heaps.in
+
+config-heaps-v3:
+	mpirun -np 6 ./distr-sched-v3 2 2 2 0.00 < heaps.in
+
+config-heaps-v4:
+	mpirun -np 6 ./distr-sched-v4 2 2 2 0.00 < heaps.in
 
 config-heaps-seq:
 	mpirun -np 6 ./distr-sched-seq 2 2 2 0.00 < heaps.in

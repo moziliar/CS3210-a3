@@ -144,8 +144,6 @@ int main(int argc, char *argv[]) {
   int num_new_tasks = 0;
   task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
-  task_t *task_msg_buffer = (task_t*) malloc(num_procs * sizeof(task_t));
-
   MPI_Request *task_reqs = malloc(num_procs * sizeof(MPI_Request));
   MPI_Request *busy_reqs = malloc(num_procs * sizeof(MPI_Request));
   MPI_Request *count_reqs = malloc(num_procs * sizeof(MPI_Request));
@@ -280,8 +278,8 @@ int main(int argc, char *argv[]) {
                   }
                   printf("\n");
                   printf("rank %d records %d active tasks\n", rank, total_active_tasks);
-                  sleep(1);
 #endif
+                  sleep(1);
 
                 }
               }
@@ -473,9 +471,8 @@ int main(int argc, char *argv[]) {
   free(task_reqs);
   free(busy_reqs);
   free(count_reqs);
-  free(is_busy);
+  free(curr_status);
   free(task_buffer);
-  free(task_msg_buffer);
 
   /*
    * =======================================================================

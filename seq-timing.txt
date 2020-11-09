@@ -1,0 +1,11 @@
+chains
+Rank 0: 162488ms of 162493ms (0.99997) - completed: 7 8 12 8 10
+
+dense
+Rank 0: 3215754ms of 3215926ms (0.99995) - completed: 241 240 214 246 230
+
+heaps
+Rank 0: 153846ms of 153856ms (0.99994) - completed: 11 6 7 7 4
+
+sparse
+Rank 0: 4008993ms of 4009183ms (0.99995) - completed: 271 251 289 278 261

@@ -1,7 +1,11 @@
 #include "tasks.h"
+#include <search.h>
 
 #define MAX_TASK_IN_MSG 50
 #define PRINT 0
+
+// arbitrarily define a max size for hashtable
+#define HTABLE_SIZE 10000
 
 // Struct used to implement a queue of task nodes
 typedef struct task_node {
@@ -85,6 +89,9 @@ int main(int argc, char *argv[]) {
 
   MPI_Type_create_struct(8, blocklens, displacements, old_types, &MPI_TASK_T);
   MPI_Type_commit(&MPI_TASK_T);
+
+  // for storing task ids for dependencies
+  (void) hcreate(HTABLE_SIZE);
 
   // task queue
   task_node_t *head, *tail;
@@ -175,13 +182,23 @@ int main(int argc, char *argv[]) {
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &has_message, &incoming_status);
 
     if (has_message && incoming_status.MPI_TAG == COUNT_TAG) {
-#if PRINT
-      printf("rank %d received task update from %d\n", rank, incoming_status.MPI_SOURCE);
-#endif
+      // message will contain 3 things, 
+      // 0 - number of new tasks, 1 - completed task id, 2 - completed output
       // update global counter
-      int temp_new_tasks = 0;
-      MPI_Recv(&temp_new_tasks, 1, MPI_INT, incoming_status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
-      total_active_tasks = total_active_tasks - 1 + temp_new_tasks;
+      uint32_t temp[3];
+      MPI_Recv(&temp, 3, MPI_UNSIGNED, incoming_status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
+#if PRINT
+      printf("rank %d received task update %u from %d\n", rank, temp[1], incoming_status.MPI_SOURCE);
+#endif
+      ENTRY item;
+      total_active_tasks = total_active_tasks - 1 + temp[0];
+      char key[11];
+      sprintf(key, "%u", temp[1]);
+      uint32_t data = temp[2];
+      item.key = key;
+      item.data = &data;
+      // insert into hashtable
+      (void) hsearch(item, ENTER);
       continue;
 
     } else if (has_message && incoming_status.MPI_TAG == BUSY_TAG) {
@@ -264,27 +281,103 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      int num_new_tasks = 0;
-      // execute task
+      // if current node has unfulfilled dependencies, move it to back of list
+      // and continue to next iteration
+      // otherwise, update the task's arg_seed accordingly
+      // this implementation is quite inefficient, as it means the process
+      // will busy wait, with itself marked as busy
+      // until the other procs have said that some task is complete
+      // progress is guaranteed though, as it will keep checking for update messages
+      // and cycle through the list.
+      // we can likely improve this with some heuristics if this turns out to be really really slow
+      // such as by telling others they are free to receive more tasks even though they aren't
+
       task_node_t *curr = head;
+      int unfulfilled = 0;
+      uint32_t seed = (&curr->task)->arg_seed;
+      for (int i = 0; i < (&curr->task)->num_dependencies; i++) {
+        ENTRY item, *found_item;
+        char key[11];
+        sprintf(key, "%u", (&curr->task)->dependencies[i]);
+        item.key = key;
+        if ((found_item = hsearch(item, FIND)) == NULL) {
+          // failed to find item
+          unfulfilled = 1;
+#if PRINT
+          printf("rank %d moving %u to back of queue size %d\n", rank, (&curr->task)->id, task_queue_len);
+          sleep(1);
+#endif
+          // move to back of list
+          if (task_queue_len == 1) {
+            // don't need to do anything
+            break;
+          }
+
+          head = head->next;
+          curr->next = NULL;
+          tail->next = curr;
+          tail = curr;
+          break;
+        } else {
+          seed |= (*((uint32_t*)(found_item->data)) & (&curr->task)->masks[i]);
+        }
+      }
+
+      if (unfulfilled) continue;
+
+      // this works because arg_seed is 0 for tasks with dependencies.
+      // we only do this if we have all dependencies.
+#if PRINT
+      for (int i = 0; i < (&curr->task)->num_dependencies; i++) {
+        ENTRY item, *found_item;
+        char key[11];
+        sprintf(key, "%u", (&curr->task)->dependencies[i]);
+        item.key = key;
+        found_item = hsearch(item, FIND);
+        uint32_t data = *((uint32_t*) (found_item->data));
+        (&curr->task)->arg_seed |= (data & (&curr->task)->masks[i]);
+        printf("    r%d: task %u is dependent on task %s, with output %u, mask %u\n", rank, 
+          (&curr->task)->id, found_item->key, data, (&curr->task)->masks[i]);
+      }
+#endif
+      (&curr->task)->arg_seed = seed;
+
+      uint32_t temp[3];
+      // execute task
       task_queue_len--;
       if (task_queue_len == 0) {
         head = tail = NULL;
       } else {
         head = head->next;
       }
-      execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
+      execute_task(&stats, &curr->task, (int*) &temp, task_buffer);
 
-      total_active_tasks = total_active_tasks - 1 + num_new_tasks;
+      total_active_tasks = total_active_tasks - 1 + temp[0];
+      temp[1] = (&curr->task)->id;
+      temp[2] = (&curr->task)->output;
 
       for (int i = 0; i < num_procs; i++) {
         if (i == rank) continue;
 
-        MPI_Isend(&num_new_tasks, 1, MPI_INT, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
+        MPI_Isend(&temp, 3, MPI_UNSIGNED, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
       }
 
+      ENTRY item;
+
+      // insert into hashtable
+      char key[11];
+      sprintf(key, "%u", temp[1]);
+      item.key = key;
+      // item.data = (void *) temp[2];
+      uint32_t data = temp[2];
+      item.data = &data;
+#if PRINT
+      printf("-- storing key %s, data %u\n", item.key, *((uint32_t*) item.data));
+#endif
+      (void) hsearch(item, ENTER);
+
       // enqueue all the child tasks
-      for (int i = 0; i < num_new_tasks; i++) {
+      for (int i = 0; i < temp[0]; i++) {
         task_node_t *node = calloc(1, sizeof(task_node_t));
         node->task = task_buffer[i];
         node->next = NULL;
@@ -330,6 +423,7 @@ int main(int argc, char *argv[]) {
   free(count_reqs);
   free(is_busy);
   free(task_buffer);
+  hdestroy();
 
   /*
    * =======================================================================

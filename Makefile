@@ -20,14 +20,23 @@ compile-seq:
 	mpicc tasks.h tasks.c seq.c -lm -Wpedantic -Wall -o distr-sched-seq
 
 config-chains:
-	mpirun -np 4 ./distr-sched 8 1 1 0.00 < chains.in
+	mpirun -np 4 ./distr-sched 8 1 1 0.00 < cases/chains.in
 
 config-heaps:
-	mpirun -np 4 ./distr-sched 5 2 2 0.00 < heaps.in
+	mpirun -np 4 ./distr-sched 5 2 2 0.00 < cases/heaps.in
 
 config-sparse:
-	mpirun -np 4 ./distr-sched 12 0 10 0.16 < sparse.in > sparse.out
+	mpirun -np 4 ./distr-sched 12 0 10 0.16 < cases/sparse.in 
 
 config-dense:
-	mpirun -np 4 ./distr-sched 5 3 5 0.50 < dense.in > dense.out
+	mpirun -np 4 ./distr-sched 5 3 5 0.50 < cases/dense.in 
+
+config-fan:
+	mpirun -np 4 ./distr-sched 3 7 7 0.00 < cases/fan.in 
+	
+config-almost-chain:
+	mpirun -np 4 ./distr-sched 10 0 1 0.20 < cases/almost-chain.in 
+
+config-extra-chain:
+	mpirun -np 4 ./distr-sched 8 1 3 0.50 < cases/extra-chain.in 
 

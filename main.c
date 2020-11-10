@@ -1,7 +1,6 @@
 #include "tasks.h"
 
 #define MAX_TASK_IN_MSG 50
-#define PRINT 0
 
 // Struct used to implement a queue of task nodes
 typedef struct task_node {
@@ -166,7 +165,7 @@ int main(int argc, char *argv[]) {
   MPI_Status incoming_status;
   while (1) {
     if (total_active_tasks == 0) {
-#if PRINT
+#ifdef PRINT
       printf("rank %d has no more active tasks, quitting\n", rank);
 #endif
       break;
@@ -175,7 +174,7 @@ int main(int argc, char *argv[]) {
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &has_message, &incoming_status);
 
     if (has_message && incoming_status.MPI_TAG == COUNT_TAG) {
-#if PRINT
+#ifdef PRINT
       printf("rank %d received task update from %d\n", rank, incoming_status.MPI_SOURCE);
 #endif
       // update global counter
@@ -186,7 +185,7 @@ int main(int argc, char *argv[]) {
 
     } else if (has_message && incoming_status.MPI_TAG == BUSY_TAG) {
       int sender = incoming_status.MPI_SOURCE;
-#if PRINT
+#ifdef PRINT
       printf("rank %d received busy update from %d\n", rank, sender);
 #endif
       // update busy view, to determine who we can send tasks to
@@ -198,7 +197,7 @@ int main(int argc, char *argv[]) {
       // this should never exceed MAX_TASK_IN_MSG
       int num_tasks;
       MPI_Get_count(&incoming_status, MPI_TASK_T, &num_tasks);
-#if PRINT
+#ifdef PRINT
       printf("rank %d received %d tasks from %d\n", rank, num_tasks, sender);
 #endif
       MPI_Recv(&task_msg_buffer, num_tasks, MPI_TASK_T, sender, TASK_TAG, MPI_COMM_WORLD, NULL);
@@ -206,7 +205,7 @@ int main(int argc, char *argv[]) {
       for (int i = 0; i < num_tasks; i++) {
         task_node_t *node = (task_node_t*) calloc(1, sizeof(task_node_t));
         node->task = task_msg_buffer[i];
-#if PRINT
+#ifdef PRINT
         printf("rank %d has received task type %d, seed %d\n", rank, task_msg_buffer[i].type, task_msg_buffer[i].arg_seed);
 #endif
         node->next = NULL;
@@ -221,7 +220,7 @@ int main(int argc, char *argv[]) {
         task_queue_len++;
       }
 
-#if PRINT
+#ifdef PRINT
       printf("rank %d, queue length: %d\n", rank, task_queue_len);
 #endif
       continue;
@@ -247,14 +246,14 @@ int main(int argc, char *argv[]) {
             int num_tasks_to_send = task_queue_len > MAX_TASK_IN_MSG * 2
                            ? MAX_TASK_IN_MSG
                            : task_queue_len / 2;
-#if PRINT
+#ifdef PRINT
               printf("Rank %d sent %d tasks to %d\n", rank, num_tasks_to_send, i);
 #endif
             for (int j = 0; j < num_tasks_to_send; j++) {
               task_msg_buffer[j] = head->task;
               head = head->next;
               task_queue_len--;
-#if PRINT
+#ifdef PRINT
               printf("rank %d is sending task type %d to %d\n", rank, task_msg_buffer[j].type, i);
 #endif
             }
@@ -300,7 +299,7 @@ int main(int argc, char *argv[]) {
 
       free(curr);
 
-#if PRINT
+#ifdef PRINT
       printf("rank %d completed a task with %d tasks in queue\n", rank, task_queue_len);
 #endif
       continue;
@@ -308,7 +307,7 @@ int main(int argc, char *argv[]) {
     } else if (!is_busy[rank]) {
       if (task_queue_len == 0) {
         // continue waiting for task / updates
-#if PRINT
+#ifdef PRINT
         sleep(1);
 #endif
         continue;

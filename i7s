@@ -1,4 +1,4 @@
-soctf-pdc-015
-soctf-pdc-016
-soctf-pdc-014
-soctf-pdc-013
+soctf-pdc-015 max_slots=8
+soctf-pdc-016 max_slots=8
+soctf-pdc-014 max_slots=8
+soctf-pdc-013 max_slots=8

@@ -19,6 +19,13 @@ compile-v4:
 compile-seq:
 	mpicc tasks.h tasks.c seq.c -lm -Wpedantic -Wall -o distr-sched-seq
 
+compile-par:
+	mpicc tasks.h tasks.c main.c -lm -Wpedantic -Wall -o distr-sched
+	mpicc tasks.h tasks.c v1-pre-state-machine.c -lm -Wpedantic -Wall -o distr-sched-v1
+	mpicc tasks.h tasks.c v2-state-machine-single-task.c -lm -Wpedantic -Wall -o distr-sched-v2
+	mpicc tasks.h tasks.c v3-multiple-tasks-with-waits.c -lm -Wpedantic -Wall -o distr-sched-v3
+	mpicc tasks.h tasks.c v4-broadcast.c -lm -Wpedantic -Wall -o distr-sched-v4
+
 config-chains:
 	mpirun -np 4 ./distr-sched 8 1 1 0.00 < cases/chains.in
 

@@ -248,9 +248,8 @@ int main(int argc, char *argv[]) {
       if (task_queue_len == 0) {
         // set to not busy, inform everyone that i am free
         is_busy[rank] = FREE;
-        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
-
         MPI_Ibcast(&is_busy[rank], 1, MPI_INT, rank, busy_comms[rank], &my_busy_req);
+        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
         continue;
       } 
       
@@ -291,9 +290,8 @@ int main(int argc, char *argv[]) {
 
       total_active_tasks = total_active_tasks - 1 + num_new_tasks;
 
-      MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
-
       MPI_Ibcast(&num_new_tasks, 1, MPI_INT, rank, count_comms[rank], &my_count_req);
+      MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
 
       // enqueue all the child tasks
       for (int i = 0; i < num_new_tasks; i++) {
@@ -326,15 +324,12 @@ int main(int argc, char *argv[]) {
         continue;
       } else if (task_queue_len != 0) {
         is_busy[rank] = BUSY;
-        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
-
         MPI_Ibcast(&is_busy[rank], 1, MPI_INT, rank, busy_comms[rank], &my_busy_req);
+        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
         continue;
       }
     } 
   }
-  MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
-  MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
 
   free(task_buffer);
   free(count_reqs);

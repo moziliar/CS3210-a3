@@ -226,12 +226,12 @@ int main(int argc, char *argv[]) {
       if (task_queue_len == 0) {
         // set to not busy, inform everyone that i am free
         is_busy[rank] = FREE;
-        MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         for (int i = 0; i < num_procs; i++) {
           if (i == rank) continue;
 
           MPI_Isend(&is_busy[rank], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[i]);
         }
+        //MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         continue;
       } 
       
@@ -272,15 +272,6 @@ int main(int argc, char *argv[]) {
 
       total_active_tasks = total_active_tasks - 1 + num_new_tasks;
 
-      // we want to ensure num_new_tasks is fully recognized by the receivers
-#ifdef PRINT
-      printf("rank %d waiting for all to receive\n", rank);
-#endif
-      MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
-#ifdef PRINT
-      printf("rank %d finished waiting for all to receive\n", rank);
-#endif
-
       for (int i = 0; i < num_procs; i++) {
         if (i == rank) continue;
 
@@ -302,6 +293,15 @@ int main(int argc, char *argv[]) {
         task_queue_len++;
       }
 
+      // we want to ensure num_new_tasks is fully recognized by the receivers
+#ifdef PRINT
+      printf("rank %d waiting for all to receive\n", rank);
+#endif
+      MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
+#ifdef PRINT
+      printf("rank %d finished waiting for all to receive\n", rank);
+#endif
+
       free(curr);
 
 #ifdef PRINT
@@ -318,12 +318,12 @@ int main(int argc, char *argv[]) {
         continue;
       } else if (task_queue_len != 0) {
         is_busy[rank] = BUSY;
-        MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         for (int i = 0; i < num_procs; i++) {
           if (i == rank) continue;
 
           MPI_Isend(&is_busy[rank], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[i]);
         }
+        //MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         continue;
       }
     } 

@@ -247,12 +247,12 @@ int main(int argc, char *argv[]) {
         // set to not busy, inform everyone that i am free
         is_busy[rank] = FREE;
 
-        MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         for (int i = 0; i < num_procs; i++) {
           if (i == rank) continue;
 
           MPI_Isend(&is_busy[rank], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[i]);
         }
+        //MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         continue;
       } 
       
@@ -355,12 +355,12 @@ int main(int argc, char *argv[]) {
       temp[1] = (&curr->task)->id;
       temp[2] = (&curr->task)->output;
 
-      MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
       for (int i = 0; i < num_procs; i++) {
         if (i == rank) continue;
 
         MPI_Isend(&temp, 3, MPI_UNSIGNED, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
       }
+      MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
 
       ENTRY item;
 
@@ -407,12 +407,12 @@ int main(int argc, char *argv[]) {
         continue;
       } else if (task_queue_len != 0) {
         is_busy[rank] = BUSY;
-        MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         for (int i = 0; i < num_procs; i++) {
           if (i == rank) continue;
 
           MPI_Isend(&is_busy[rank], 1, MPI_INT, i, BUSY_TAG, MPI_COMM_WORLD, &busy_reqs[i]);
         }
+        //MPI_Waitall(num_procs, busy_reqs, MPI_STATUSES_IGNORE);
         continue;
       }
     } 

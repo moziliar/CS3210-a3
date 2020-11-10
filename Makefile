@@ -11,7 +11,7 @@ compile-v2:
 	mpicc tasks.h tasks.c v2-state-machine-single-task.c -lm -Wpedantic -Wall -o distr-sched-v2
 
 compile-v3:
-	mpicc tasks.h tasks.c v3-multiple-tasks-with-waits.c -lm -Wpedantic -Wall -o distr-sched-v3
+	mpicc tasks.h tasks.c v3-multiple-tasks-without-wait.c -lm -Wpedantic -Wall -o distr-sched-v3
 
 compile-v4:
 	mpicc tasks.h tasks.c v4-broadcast.c -lm -Wpedantic -Wall -o distr-sched-v4
@@ -23,7 +23,7 @@ compile-par:
 	mpicc tasks.h tasks.c main.c -lm -Wpedantic -Wall -o distr-sched
 	mpicc tasks.h tasks.c v1-pre-state-machine.c -lm -Wpedantic -Wall -o distr-sched-v1
 	mpicc tasks.h tasks.c v2-state-machine-single-task.c -lm -Wpedantic -Wall -o distr-sched-v2
-	mpicc tasks.h tasks.c v3-multiple-tasks-with-waits.c -lm -Wpedantic -Wall -o distr-sched-v3
+	mpicc tasks.h tasks.c v3-multiple-tasks-without-wait.c -lm -Wpedantic -Wall -o distr-sched-v3
 	mpicc tasks.h tasks.c v4-broadcast.c -lm -Wpedantic -Wall -o distr-sched-v4
 
 config-chains:
@@ -71,6 +71,3 @@ config-s-almost-chain:
 
 config-s-extra-chain:
 	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 8 1 3 0.50 < cases/extra-chain.in 
-
-
-

@@ -157,11 +157,9 @@ int main(int argc, char *argv[]) {
   MPI_Request my_busy_req = MPI_REQUEST_NULL;
 
   // for outgoing messages
-  MPI_Request *task_reqs = malloc(num_procs * sizeof(MPI_Request));
   for (int i = 0; i < num_procs; i++) {
     MPI_Comm_dup(MPI_COMM_WORLD, &count_comms[i]);
     MPI_Comm_dup(MPI_COMM_WORLD, &busy_comms[i]);
-    task_reqs[i] = MPI_REQUEST_NULL;
     count_reqs[i] = MPI_REQUEST_NULL;
     busy_reqs[i] = MPI_REQUEST_NULL;
 
@@ -245,10 +243,12 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
+
     if (is_busy[rank]) {
       if (task_queue_len == 0) {
         // set to not busy, inform everyone that i am free
         is_busy[rank] = FREE;
+        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
 
         MPI_Ibcast(&is_busy[rank], 1, MPI_INT, rank, busy_comms[rank], &my_busy_req);
         continue;
@@ -272,7 +272,7 @@ int main(int argc, char *argv[]) {
               printf("rank %d is sending task type %d to %d\n", rank, task_msg_buffer[j].type, i);
 #endif
             }
-            MPI_Isend(&task_msg_buffer, num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
+            MPI_Send(&task_msg_buffer, num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD); 
             is_busy[i] = BUSY;
           }
         }
@@ -290,6 +290,8 @@ int main(int argc, char *argv[]) {
       execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
       total_active_tasks = total_active_tasks - 1 + num_new_tasks;
+
+      MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
 
       MPI_Ibcast(&num_new_tasks, 1, MPI_INT, rank, count_comms[rank], &my_count_req);
 
@@ -324,15 +326,14 @@ int main(int argc, char *argv[]) {
         continue;
       } else if (task_queue_len != 0) {
         is_busy[rank] = BUSY;
+        MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
 
-        MPI_Ibcast(&is_busy[rank], 1, MPI_INT, rank, 
-                 busy_comms[rank], &my_busy_req);
+        MPI_Ibcast(&is_busy[rank], 1, MPI_INT, rank, busy_comms[rank], &my_busy_req);
         continue;
       }
     } 
   }
 
-  free(task_reqs);
   free(task_buffer);
   free(count_reqs);
   free(busy_reqs);

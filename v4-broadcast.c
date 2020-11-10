@@ -333,6 +333,8 @@ int main(int argc, char *argv[]) {
       }
     } 
   }
+  MPI_Wait(&my_busy_req, MPI_STATUS_IGNORE);
+  MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
 
   free(task_buffer);
   free(count_reqs);

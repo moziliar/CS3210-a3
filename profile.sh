@@ -15,7 +15,7 @@ elif [[ $1 == "i7s" ]]; then
   # NP=("4","8")
 fi
 
-$(make compile-par)
+make compile-par
 
 # can't test v1, v3
 

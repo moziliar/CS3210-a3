@@ -52,22 +52,22 @@ config-extra-chain:
 # append NP=<NUM> BIN=<BIN> HF=<HOSTIFLE> as necessary
 # e.g. make config-s-chains NP=2 BIN=distr-sched HF=xeons
 config-s-chains:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 8 1 1 0.00 < cases/chains.in
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 8 1 1 0.00 < cases/chains.in
 
 config-s-heaps:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 5 2 2 0.00 < cases/heaps.in
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 5 2 2 0.00 < cases/heaps.in
 
 config-s-sparse:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 12 0 10 0.16 < cases/sparse.in 
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 12 0 10 0.16 < cases/sparse.in 
 
 config-s-dense:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 5 3 5 0.50 < cases/dense.in 
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 5 3 5 0.50 < cases/dense.in 
 
 config-s-fan:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 3 7 7 0.00 < cases/fan.in 
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 3 7 7 0.00 < cases/fan.in 
 	
 config-s-almost-chain:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 10 0 1 0.20 < cases/almost-chain.in 
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 10 0 1 0.20 < cases/almost-chain.in 
 
 config-s-extra-chain:
-	mpirun -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 8 1 3 0.50 < cases/extra-chain.in 
+	mpirun --oversubscribe -np $(NP) --hostfile $(HF) --map-by node ./$(BIN) 8 1 3 0.50 < cases/extra-chain.in 

@@ -163,8 +163,14 @@ int main(int argc, char *argv[]) {
 
   int has_message;
   MPI_Status incoming_status;
+  int count_done;
+  int busy_done;
+  int task_done;
   while (1) {
-    if (total_active_tasks == 0) {
+    MPI_Testall(num_procs, count_reqs, &count_done, MPI_STATUSES_IGNORE);
+    MPI_Testall(num_procs, busy_reqs, &busy_done, MPI_STATUSES_IGNORE);
+    MPI_Testall(num_procs, task_reqs, &task_done, MPI_STATUSES_IGNORE);
+    if (total_active_tasks == 0 && count_done && busy_done && task_done) {
 #ifdef PRINT
       printf("rank %d has no more active tasks, quitting\n", rank);
 #endif
@@ -243,6 +249,7 @@ int main(int argc, char *argv[]) {
         // distribute task until left with 1 task minimum
         for (int i = 0; i < num_procs && task_queue_len > 1; i++) {
           if (is_busy[i] == FREE && i != rank) {
+            MPI_Wait(&task_reqs[i], MPI_STATUS_IGNORE);
             int num_tasks_to_send = task_queue_len > MAX_TASK_IN_MSG * 2
                            ? MAX_TASK_IN_MSG
                            : task_queue_len / 2;
@@ -275,6 +282,7 @@ int main(int argc, char *argv[]) {
       execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
       total_active_tasks = total_active_tasks - 1 + num_new_tasks;
+      MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
 
       for (int i = 0; i < num_procs; i++) {
         if (i == rank) continue;

@@ -312,7 +312,6 @@ int main(int argc, char *argv[]) {
               printf("rank %d is sending task type %d to %d\n", rank, task_msg_buffer[j].type, i);
 #endif
             }
-            // TODO change to isend
             MPI_Isend(&task_msg_buffer[i], num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
             is_busy[i] = BUSY;
           }
@@ -428,6 +427,7 @@ int main(int argc, char *argv[]) {
   free(is_busy);
   free(task_buffer);
   free(task_msg_buffer);
+  hdestroy();
 
   /*
    * =======================================================================

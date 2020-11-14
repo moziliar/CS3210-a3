@@ -3,24 +3,25 @@
 
 if [[ $1 == "xeons" ]]; then
   # xeon
-  NP=("20" "40" "60" "80")
+  NP=("80" "60" "40" "20")
 elif [[ $1 == "xeons-i7s" ]]; then 
   # xeon and i7
-  NP=("8" "16" "24" "32" "46" "56")
+  NP=("56" "46" "32" "24" "16" "8")
 elif [[ $1 == "i7s" ]]; then
   # i7
-  NP=("8" "16" "24" "32")
+  NP=("32" "24" "16" "8")
 # else
   # compute locally
   # NP=("4","8")
 fi
 
-make compile-par
+make compile
 
 # can't test v1, v3
 
 # bins=("distr-sched", "distr-sched-v1", "distr-sched-v2", "distr-sched-v3", "distr-sched-v4")
-bins=("distr-sched" "distr-sched-v2" "distr-sched-v4")
+# bins=("distr-sched" "distr-sched-v2" "distr-sched-v4")
+bins=("distr-sched")
 cases=("chains" "heaps" "sparse" "dense" "fan" "extra-chain" "almost-chain")
 # cases=("8 1 1 0.00 < chains.in", "2 2 2 0.00 < heaps.in", "12 0 10 0.16 < sparse.in", "5 3 5 0.50 < dense.in")
 
@@ -63,9 +64,9 @@ get_time() {
 # space separated for each rank
 # print util total #1 #2 #3 #4 #5
 echo ""
-for case in "${cases[@]}"; do
-  for bin in "${bins[@]}"; do
-    for n in "${NP[@]}"; do
+for n in "${NP[@]}"; do
+  for case in "${cases[@]}"; do
+    for bin in "${bins[@]}"; do
     echo "$case - $bin - $n"
     to_run="make config-s-${case} NP=${n} HF=$1 BIN=${bin}"
 

@@ -170,11 +170,11 @@ int main(int argc, char *argv[]) {
   // for outgoing messages
   MPI_Request *task_reqs = malloc(num_procs * sizeof(MPI_Request));
   MPI_Request *busy_reqs = malloc(num_procs * sizeof(MPI_Request));
-  MPI_Request *count_reqs = malloc(num_procs * sizeof(MPI_Request));
+  MPI_Request *fin_reqs = malloc(num_procs * sizeof(MPI_Request));
   for (int i = 0; i < num_procs; i++) {
     task_reqs[i] = MPI_REQUEST_NULL;
     busy_reqs[i] = MPI_REQUEST_NULL;
-    count_reqs[i] = MPI_REQUEST_NULL;
+    fin_reqs[i] = MPI_REQUEST_NULL;
   }
   MPI_Request my_count_req = MPI_REQUEST_NULL;
 
@@ -186,11 +186,11 @@ int main(int argc, char *argv[]) {
   MPI_Status incoming_status;
   while (1) {
     if (rank == 0 && cur_table_size == 0) {
-      // TODO tell everyone to break
+      // tell everyone to break. we don't actually need to send anything
       for (int i = 0; i < num_procs; i++) {
         if (rank == i) continue;
         int data = 1;
-        MPI_Send(&data, 1, MPI_INT, i, FIN_TAG, MPI_COMM_WORLD);
+        MPI_Isend(&data, 1, MPI_INT, i, FIN_TAG, MPI_COMM_WORLD, &fin_reqs[i]);
       }
 #ifdef PRINT
       printf("rank 0 has told everyone to quit\n");
@@ -420,12 +420,14 @@ int main(int argc, char *argv[]) {
       }
     } 
   }
+  MPI_Waitall(num_procs, fin_reqs, MPI_STATUSES_IGNORE);
 
   free(task_reqs);
   free(busy_reqs);
-  free(count_reqs);
+  free(fin_reqs);
   free(is_busy);
   free(task_buffer);
+  free(task_msg_buffer);
 
   /*
    * =======================================================================

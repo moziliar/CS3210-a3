@@ -16,6 +16,9 @@ compile-v3:
 compile-v4:
 	mpicc tasks.h tasks.c v4-broadcast.c -lm -Wpedantic -Wall -o distr-sched-v4
 
+compile-v5:
+	mpicc tasks.h tasks.c v5-even-odd-distr.c -lm -Wpedantic -Wall -o distr-sched-v5
+
 compile-seq:
 	mpicc tasks.h tasks.c seq.c -lm -Wpedantic -Wall -o distr-sched-seq
 

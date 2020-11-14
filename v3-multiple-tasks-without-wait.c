@@ -1,6 +1,11 @@
 #include "tasks.h"
+#include <search.h>
 
 #define MAX_TASK_IN_MSG 50
+
+
+// arbitrarily define a max size for hashtable
+#define HTABLE_SIZE 10000
 
 // Struct used to implement a queue of task nodes
 typedef struct task_node {
@@ -85,6 +90,11 @@ int main(int argc, char *argv[]) {
   MPI_Type_create_struct(8, blocklens, displacements, old_types, &MPI_TASK_T);
   MPI_Type_commit(&MPI_TASK_T);
 
+  // only used by rank 0
+  (void) hcreate(HTABLE_SIZE);
+  int cur_table_size = 0;
+  uint32_t incoming_count_buffer[params.Nmax + 1];
+
   // task queue
   task_node_t *head, *tail;
   int task_queue_len;
@@ -95,20 +105,23 @@ int main(int argc, char *argv[]) {
   // flags
   int TASK_TAG = 0;
   int BUSY_TAG = 1;
+
+  // only sent to rank 0, and received by rank 0
   int COUNT_TAG = 2;
+
+  // only sent by rank 0
+  int FIN_TAG = 3;
 
   int FREE = 0;
   int BUSY = 1;
-
-  int total_active_tasks = 0;
 
   if (rank == 0) {
     // Head and tail pointers of the task queue
 
     // Read initial tasks
-    scanf("%d", &total_active_tasks);
+    scanf("%d", &cur_table_size);
 
-    for (int i = 0; i < total_active_tasks; i++) {
+    for (int i = 0; i < cur_table_size; i++) {
       task_node_t *node = (task_node_t*) calloc(1, sizeof(task_node_t));
       if (node == NULL) {
         fprintf(stderr, "Failed to calloc task queue node\n");
@@ -119,6 +132,15 @@ int main(int argc, char *argv[]) {
       node->task.id = node->task.arg_seed;
       node->task.gen = 0;
       node->next = NULL;
+
+      ENTRY item;
+      char key[11];
+      sprintf(key, "%u", node->task.id);
+      // just keep track of whether it is in the table.
+      int data = 1;
+      item.key = key;
+      item.data = &data;
+      (void) hsearch(item, ENTER);
 
       if (i == 0) {
         // First take is both head and tail of queue
@@ -133,9 +155,6 @@ int main(int argc, char *argv[]) {
       task_queue_len++;
     }
   }
-
-  // tell everyone that there are n tasks at the start, then start distributing them.
-  MPI_Bcast(&total_active_tasks, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   /*
    * After the rank 0 node reads in the tasks, we can already treat it as one of the worker node.
@@ -156,6 +175,7 @@ int main(int argc, char *argv[]) {
     busy_reqs[i] = MPI_REQUEST_NULL;
     count_reqs[i] = MPI_REQUEST_NULL;
   }
+  MPI_Request my_count_req = MPI_REQUEST_NULL;
 
   // status buffer
   int *is_busy = calloc(num_procs, sizeof(int));
@@ -164,9 +184,15 @@ int main(int argc, char *argv[]) {
   int has_message;
   MPI_Status incoming_status;
   while (1) {
-    if (total_active_tasks == 0) {
+    if (rank == 0 && cur_table_size == 0) {
+      // TODO tell everyone to break
+      for (int i = 0; i < num_procs; i++) {
+        if (rank == i) continue;
+        int data = 1;
+        MPI_Send(&data, 1, MPI_INT, i, FIN_TAG, MPI_COMM_WORLD);
+      }
 #ifdef PRINT
-      printf("rank %d has no more active tasks, quitting\n", rank);
+      printf("rank 0 has told everyone to quit\n");
 #endif
       break;
     }
@@ -174,15 +200,42 @@ int main(int argc, char *argv[]) {
     MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &has_message, &incoming_status);
 
     if (has_message && incoming_status.MPI_TAG == COUNT_TAG) {
+      // only for rank 0
+      // message will contain
+      // 0 - completd task id
+      // 1... - new task ids
 #ifdef PRINT
       printf("rank %d received task update from %d\n", rank, incoming_status.MPI_SOURCE);
 #endif
-      // update global counter
-      int temp_new_tasks = 0;
-      MPI_Recv(&temp_new_tasks, 1, MPI_INT, incoming_status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
-      total_active_tasks = total_active_tasks - 1 + temp_new_tasks;
+      int num_elems;
+      MPI_Get_count(&incoming_status, MPI_UNSIGNED, &num_elems);
+      MPI_Recv(&incoming_count_buffer, num_elems, MPI_UNSIGNED, incoming_status.MPI_SOURCE, COUNT_TAG, MPI_COMM_WORLD, NULL);
+      for (int i = 0; i < num_elems; i++) {
+        // we do not actually care to differentiate them, as it
+        // is possible that some task already completed the task
+        // just received, and the message came very late
+        ENTRY item, *found_item;
+        char key[11];
+        sprintf(key, "%u", incoming_count_buffer[i]);
+        item.key = key;
+        int data = 1;
+        if ((found_item = hsearch(item, FIND)) == NULL) {
+          // failed to find, so we insert and increment
+          item.data = &data;
+          (void) hsearch(item, ENTER);
+          cur_table_size++;
+        } else {
+          // found, so we just decrement
+          cur_table_size--;
+        }
+      }
       continue;
-
+    } else if (has_message && incoming_status.MPI_TAG == FIN_TAG) {
+      // we're done, so just get out
+#ifdef PRINT
+      printf("rank %d has received a fin message", rank);
+#endif
+      break;
     } else if (has_message && incoming_status.MPI_TAG == BUSY_TAG) {
       int sender = incoming_status.MPI_SOURCE;
 #ifdef PRINT
@@ -243,6 +296,7 @@ int main(int argc, char *argv[]) {
         // distribute task until left with 1 task minimum
         for (int i = 0; i < num_procs && task_queue_len > 1; i++) {
           if (is_busy[i] == FREE && i != rank) {
+            MPI_Wait(&task_reqs[i], MPI_STATUS_IGNORE);
             int num_tasks_to_send = task_queue_len > MAX_TASK_IN_MSG * 2
                            ? MAX_TASK_IN_MSG
                            : task_queue_len / 2;
@@ -257,6 +311,7 @@ int main(int argc, char *argv[]) {
               printf("rank %d is sending task type %d to %d\n", rank, task_msg_buffer[j].type, i);
 #endif
             }
+            // TODO change to isend
             MPI_Isend(&task_msg_buffer, num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
             is_busy[i] = BUSY;
           }
@@ -274,12 +329,30 @@ int main(int argc, char *argv[]) {
       }
       execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
-      total_active_tasks = total_active_tasks - 1 + num_new_tasks;
-
-      for (int i = 0; i < num_procs; i++) {
-        if (i == rank) continue;
-
-        MPI_Isend(&num_new_tasks, 1, MPI_INT, i, COUNT_TAG, MPI_COMM_WORLD, &count_reqs[i]);
+   
+      if (rank == 0) {
+        // there is a very slim chance that we have not seen this task before
+        // this can happen if rank 1 made the new tasks, 
+        // distributed it to rank 2, which distributed to rank 0
+        // and rank 0 executes it, before it receives the count message from 
+        // rank 1
+        ENTRY item, *found_item;
+        char key[11];
+        sprintf(key, "%u", (&curr->task)->id);
+        item.key = key;
+        int data = 1;
+        if ((found_item = hsearch(item, FIND)) == NULL) {
+          // failed to find, so we insert and increment
+          item.data = &data;
+          (void) hsearch(item, ENTER);
+          cur_table_size++;
+        } else {
+          // found, so we just decrement
+          cur_table_size--;
+        }
+      } else {
+        // prepare for sending to rank 0
+        incoming_count_buffer[0] = (&curr->task)->id;
       }
 
       // enqueue all the child tasks
@@ -288,6 +361,22 @@ int main(int argc, char *argv[]) {
         node->task = task_buffer[i];
         node->next = NULL;
 
+        if (rank == 0) {
+          // add tasks to hashtable
+          // since rank 0 is the one doing this, the new tasks
+          // are definitely new, 
+          ENTRY item;
+          char key[11];
+          sprintf(key, "%u", node->task.id);
+          int data = 1;
+          item.key = key;
+          item.data = &data;
+          (void) hsearch(item, ENTER);
+          cur_table_size++;
+        } else {
+          incoming_count_buffer[1 + i] = node->task.id;
+        }
+
         if (task_queue_len == 0) {
           head = tail = node;
         } else {
@@ -295,6 +384,13 @@ int main(int argc, char *argv[]) {
           tail = node;
         }
         task_queue_len++;
+      }
+
+      if (rank != 0) {
+        // send count information to rank 0
+        MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
+        MPI_Isend(&incoming_count_buffer, num_new_tasks + 1, MPI_UNSIGNED, 
+          0, COUNT_TAG, MPI_COMM_WORLD, &my_count_req);
       }
 
       free(curr);

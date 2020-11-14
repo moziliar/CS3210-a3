@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
   // Declare array to store generated descendant tasks
   task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
-  task_t (*task_msg_buffer)[MAX_TASK_IN_MSG] = malloc(num_procs * sizeof(task_t*));
+  task_t (*task_msg_buffer)[MAX_TASK_IN_MSG] = malloc(num_procs * sizeof(*task_msg_buffer));
   task_t incoming_task_msg_buffer[MAX_TASK_IN_MSG];
 
   // for outgoing messages

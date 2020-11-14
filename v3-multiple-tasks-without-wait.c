@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
   // Declare array to store generated descendant tasks
   task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
-  task_t task_msg_buffer[MAX_TASK_IN_MSG];
+  task_t *task_msg_buffer[MAX_TASK_IN_MSG] = malloc(num_procs * sizeof(task_t*));
   task_t incoming_task_msg_buffer[MAX_TASK_IN_MSG];
 
   // for outgoing messages
@@ -305,7 +305,7 @@ int main(int argc, char *argv[]) {
               printf("Rank %d sent %d tasks to %d\n", rank, num_tasks_to_send, i);
 #endif
             for (int j = 0; j < num_tasks_to_send; j++) {
-              task_msg_buffer[j] = head->task;
+              task_msg_buffer[i][j] = head->task;
               head = head->next;
               task_queue_len--;
 #ifdef PRINT
@@ -313,7 +313,7 @@ int main(int argc, char *argv[]) {
 #endif
             }
             // TODO change to isend
-            MPI_Isend(&task_msg_buffer, num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
+            MPI_Isend(&task_msg_buffer[i], num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
             is_busy[i] = BUSY;
           }
         }

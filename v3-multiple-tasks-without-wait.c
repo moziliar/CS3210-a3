@@ -165,6 +165,7 @@ int main(int argc, char *argv[]) {
   task_t *task_buffer = (task_t*) malloc(Nmax * sizeof(task_t));
 
   task_t task_msg_buffer[MAX_TASK_IN_MSG];
+  task_t incoming_task_msg_buffer[MAX_TASK_IN_MSG];
 
   // for outgoing messages
   MPI_Request *task_reqs = malloc(num_procs * sizeof(MPI_Request));
@@ -253,13 +254,13 @@ int main(int argc, char *argv[]) {
 #ifdef PRINT
       printf("rank %d received %d tasks from %d\n", rank, num_tasks, sender);
 #endif
-      MPI_Recv(&task_msg_buffer, num_tasks, MPI_TASK_T, sender, TASK_TAG, MPI_COMM_WORLD, NULL);
+      MPI_Recv(&incoming_task_msg_buffer, num_tasks, MPI_TASK_T, sender, TASK_TAG, MPI_COMM_WORLD, NULL);
 
       for (int i = 0; i < num_tasks; i++) {
         task_node_t *node = (task_node_t*) calloc(1, sizeof(task_node_t));
-        node->task = task_msg_buffer[i];
+        node->task = incoming_task_msg_buffer[i];
 #ifdef PRINT
-        printf("rank %d has received task type %d, seed %d\n", rank, task_msg_buffer[i].type, task_msg_buffer[i].arg_seed);
+        printf("rank %d has received task type %d, seed %d\n", rank, incoming_task_msg_buffer[i].type, task_msg_buffer[i].arg_seed);
 #endif
         node->next = NULL;
 
@@ -329,6 +330,7 @@ int main(int argc, char *argv[]) {
       }
       execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
+      MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
    
       if (rank == 0) {
         // there is a very slim chance that we have not seen this task before
@@ -388,7 +390,6 @@ int main(int argc, char *argv[]) {
 
       if (rank != 0) {
         // send count information to rank 0
-        MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
         MPI_Isend(&incoming_count_buffer, num_new_tasks + 1, MPI_UNSIGNED, 
           0, COUNT_TAG, MPI_COMM_WORLD, &my_count_req);
       }

@@ -92,6 +92,13 @@ int main(int argc, char *argv[]) {
 
   // for storing task ids for dependencies
   (void) hcreate(HTABLE_SIZE);
+  ENTRY item;
+  ENTRY *found_item;
+  char key_to_find[11];
+  char string_space[HTABLE_SIZE*11];
+  uint32_t data_space[HTABLE_SIZE];
+  char *str_ptr = string_space;
+  uint32_t *data_ptr = data_space;
 
   // task queue
   task_node_t *head, *tail;
@@ -188,13 +195,14 @@ int main(int argc, char *argv[]) {
 #if PRINT
       printf("rank %d received task update %u from %d\n", rank, temp[1], incoming_status.MPI_SOURCE);
 #endif
-      ENTRY item;
       total_active_tasks = total_active_tasks - 1 + temp[0];
-      char key[11];
-      sprintf(key, "%u", temp[1]);
-      uint32_t data = temp[2];
-      item.key = key;
-      item.data = &data;
+      sprintf(str_ptr, "%u", temp[1]);
+      item.key = str_ptr;
+      *data_ptr = temp[2];
+      item.data = data_ptr;
+      //item.data = (void*) temp[2]; // store the data directly, instead of using it as an address
+      str_ptr += strlen(str_ptr) + 1;
+      data_ptr++;
       // insert into hashtable
       (void) hsearch(item, ENTER);
       continue;
@@ -295,10 +303,8 @@ int main(int argc, char *argv[]) {
       int unfulfilled = 0;
       uint32_t seed = (&curr->task)->arg_seed;
       for (int i = 0; i < (&curr->task)->num_dependencies; i++) {
-        ENTRY item, *found_item;
-        char key[11];
-        sprintf(key, "%u", (&curr->task)->dependencies[i]);
-        item.key = key;
+        sprintf(key_to_find, "%u", (&curr->task)->dependencies[i]);
+        item.key = key_to_find;
         if ((found_item = hsearch(item, FIND)) == NULL) {
           // failed to find item
           unfulfilled = 1;
@@ -328,10 +334,8 @@ int main(int argc, char *argv[]) {
       // we only do this if we have all dependencies.
 #if PRINT
       for (int i = 0; i < (&curr->task)->num_dependencies; i++) {
-        ENTRY item, *found_item;
-        char key[11];
-        sprintf(key, "%u", (&curr->task)->dependencies[i]);
-        item.key = key;
+        sprintf(key_to_find, "%u", (&curr->task)->dependencies[i]);
+        item.key = key_to_find;
         found_item = hsearch(item, FIND);
         uint32_t data = *((uint32_t*) (found_item->data));
         (&curr->task)->arg_seed |= (data & (&curr->task)->masks[i]);
@@ -340,6 +344,7 @@ int main(int argc, char *argv[]) {
       }
 #endif
       (&curr->task)->arg_seed = seed;
+      printf("%u\n", seed);
 
       uint32_t temp[3];
       // execute task
@@ -362,17 +367,16 @@ int main(int argc, char *argv[]) {
       }
       MPI_Waitall(num_procs, count_reqs, MPI_STATUSES_IGNORE);
 
-      ENTRY item;
-
       // insert into hashtable
-      char key[11];
-      sprintf(key, "%u", temp[1]);
-      item.key = key;
-      // item.data = (void *) temp[2];
-      uint32_t data = temp[2];
-      item.data = &data;
+      sprintf(str_ptr, "%u", temp[1]);
+      item.key = str_ptr;
+      *data_ptr = temp[2];
+      item.data = data_ptr;
+      //item.data = (void*) temp[2]; // store the data directly, instead of using it as an address
+      str_ptr += strlen(str_ptr) + 1;
+      data_ptr++;
 #if PRINT
-      printf("-- storing key %s, data %u\n", item.key, *((uint32_t*) item.data));
+      printf("-- storing key %s, data %u\n", item.key, (uint32_t) item.data);
 #endif
       (void) hsearch(item, ENTER);
 

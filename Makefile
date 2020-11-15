@@ -2,7 +2,7 @@ compile:
 	mpicc tasks.h tasks.c main.c -lm -Wpedantic -Wall -o distr-sched
 
 compile-b:
-	mpicc tasks.h tasks.c extension/bonus.c -lm -Wpedantic -Wall -o distr-sched-bonus
+	mpicc extension/tasks.h extension/tasks.c extension/bonus.c -lm -Wpedantic -Wall -o distr-sched-bonus
 	
 compile-v1:
 	mpicc tasks.h tasks.c v1-pre-state-machine.c -lm -Wpedantic -Wall -o distr-sched-v1

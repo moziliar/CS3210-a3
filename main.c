@@ -297,7 +297,7 @@ int main(int argc, char *argv[]) {
         // distribute task until left with 1 task minimum
         for (int i = 0; i < num_procs && task_queue_len > 1; i++) {
           if (is_busy[i] == FREE && i != rank) {
-            MPI_Wait(&task_reqs[i], MPI_STATUS_IGNORE);
+            // MPI_Wait(&task_reqs[i], MPI_STATUS_IGNORE);
             int num_tasks_to_send = task_queue_len > MAX_TASK_IN_MSG * 2
                            ? MAX_TASK_IN_MSG
                            : task_queue_len / 2;
@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
               printf("rank %d is sending task type %d to %d\n", rank, task_msg_buffer[j].type, i);
 #endif
             }
-            MPI_Isend(&task_msg_buffer[i], num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD, &task_reqs[i]); 
+            MPI_Send(&task_msg_buffer[i], num_tasks_to_send, MPI_TASK_T, i, TASK_TAG, MPI_COMM_WORLD); 
             is_busy[i] = BUSY;
           }
         }
@@ -329,7 +329,7 @@ int main(int argc, char *argv[]) {
       }
       execute_task(&stats, &curr->task, &num_new_tasks, task_buffer);
 
-      MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
+      // MPI_Wait(&my_count_req, MPI_STATUS_IGNORE);
    
       if (rank == 0) {
         // there is a very slim chance that we have not seen this task before
@@ -389,8 +389,9 @@ int main(int argc, char *argv[]) {
 
       if (rank != 0) {
         // send count information to rank 0
-        MPI_Isend(&incoming_count_buffer, num_new_tasks + 1, MPI_UNSIGNED, 
-          0, COUNT_TAG, MPI_COMM_WORLD, &my_count_req);
+        //MPI_Isend(&incoming_count_buffer, num_new_tasks + 1, MPI_UNSIGNED, 0, COUNT_TAG, MPI_COMM_WORLD, &my_count_req);
+        MPI_Send(&incoming_count_buffer, num_new_tasks + 1, MPI_UNSIGNED, 
+          0, COUNT_TAG, MPI_COMM_WORLD);
       }
 
       free(curr);

@@ -344,7 +344,6 @@ int main(int argc, char *argv[]) {
       }
 #endif
       (&curr->task)->arg_seed = seed;
-      printf("%u\n", seed);
 
       uint32_t temp[3];
       // execute task
